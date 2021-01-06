@@ -10,8 +10,8 @@ import (
 	"strconv"
 )
 
+// строка размера файла
 func GetSizeString(file os.FileInfo) string {
-	// строка размера файла
 	var size string
 	if file.IsDir() {
 		size = ""
@@ -50,7 +50,6 @@ func runTree(out io.Writer, path string, printFiles bool, level int, with_tab_sy
 	if err != nil {
 		log.Fatal(err)
 	}
-
 	// количество печатаемых файлов в уровне
 	count_print_files_in_level := 0
 	for _, file := range files {
@@ -61,18 +60,13 @@ func runTree(out io.Writer, path string, printFiles bool, level int, with_tab_sy
 			count_print_files_in_level++
 		}
 	}
-
-	// fmt.Println(level, count_print_files_in_level)
 	printedFiles := 0
 	for idx, file := range files {
 
 		symbol := "├───"
-		// fmt.Println(idx, count_print_files_in_level, file.Name())
 		if printedFiles >= count_print_files_in_level-1 {
 			symbol = "└───"
-
 		}
-
 		// если не папка и файлы печатаем то выводим файл
 		if printFiles && !file.IsDir() {
 			PrintFile(out, file, level, symbol, with_tab_symbols)
@@ -84,13 +78,10 @@ func runTree(out io.Writer, path string, printFiles bool, level int, with_tab_sy
 			printedFiles++
 			level++
 			new_path := filepath.Join(path, file.Name())
-
 			if idx >= count_print_files_in_level-1 {
 				(*with_tab_symbols)[level-1] = ""
 			}
-
 			runTree(out, new_path, printFiles, level, with_tab_symbols)
-
 			level--
 		}
 	}
@@ -117,7 +108,3 @@ func main() {
 		panic(err.Error())
 	}
 }
-
-// проблемы
-// не проходит тест с файлами хотя есть полное совпадение
-// не правильно подбирается symbol в тесте без файлов
