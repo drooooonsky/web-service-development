@@ -10,7 +10,7 @@ import (
 	"strconv"
 )
 
-func PrintFile(out io.Writer, file os.FileInfo, level int, symbol string, with_tab_symbol *[]string) {
+func GetSizeString(file os.FileInfo) string {
 	// строка размера файла
 	var size string
 	if file.IsDir() {
@@ -23,11 +23,15 @@ func PrintFile(out io.Writer, file os.FileInfo, level int, symbol string, with_t
 			s = strconv.Itoa(int(file.Size())) + "b"
 		}
 
-		size = "(" + s + ")"
+		size = " (" + s + ")"
 	}
+	return size
+}
+
+func PrintFile(out io.Writer, file os.FileInfo, level int, symbol string, with_tab_symbol *[]string) {
+	size := GetSizeString(file)
 
 	start_string1 := ""
-
 	for idx, v := range *with_tab_symbol {
 
 		if idx >= level {
@@ -36,9 +40,9 @@ func PrintFile(out io.Writer, file os.FileInfo, level int, symbol string, with_t
 		start_string1 += v + "\t"
 
 	}
-	start_string := start_string1 + symbol + "───"
-	fmt.Fprintln(out, start_string+file.Name(), size)
-	// fmt.Fprintf(out)
+	start_string := start_string1 + symbol
+	fmt.Fprint(out, start_string+file.Name(), size)
+	fmt.Fprint(out, "\n")
 }
 
 func runTree(out io.Writer, path string, printFiles bool, level int, with_tab_symbols *[]string) error {
@@ -59,27 +63,30 @@ func runTree(out io.Writer, path string, printFiles bool, level int, with_tab_sy
 	}
 
 	// fmt.Println(level, count_print_files_in_level)
-
+	printedFiles := 0
 	for idx, file := range files {
 
-		symbol := "├"
-		if idx == count_print_files_in_level-1 {
-			symbol = "└"
-			// fmt.Println(level, count_print_files_in_level)
+		symbol := "├───"
+		// fmt.Println(idx, count_print_files_in_level, file.Name())
+		if printedFiles >= count_print_files_in_level-1 {
+			symbol = "└───"
+
 		}
 
 		// если не папка и файлы печатаем то выводим файл
 		if printFiles && !file.IsDir() {
 			PrintFile(out, file, level, symbol, with_tab_symbols)
+			printedFiles++
 		}
 		// если папка то выводим папку и пробегаемся по внутренностям
 		if file.IsDir() {
 			PrintFile(out, file, level, symbol, with_tab_symbols)
+			printedFiles++
 			level++
 			new_path := filepath.Join(path, file.Name())
 
-			if idx == count_print_files_in_level-1 {
-				(*with_tab_symbols)[level-1] = " "
+			if idx >= count_print_files_in_level-1 {
+				(*with_tab_symbols)[level-1] = ""
 			}
 
 			runTree(out, new_path, printFiles, level, with_tab_symbols)
