@@ -91,7 +91,7 @@ func runTree(out io.Writer, path string, printFiles bool, level int, with_tab_sy
 func dirTree(out io.Writer, path string, printFiles bool) error {
 	var level int
 	// TODO: fix this bad slice
-	with_tab_symbols := []string{"│", "│", "│", "│", "│", "│", "│"}
+	with_tab_symbols := []string{"│", "│", "│", "│", "│", "│", "│", "│", "│", "│", "│", "│", "│", "│", "│", "│", "│", "│", "│"}
 	runTree(out, path, printFiles, level, &with_tab_symbols)
 	return nil
 }
