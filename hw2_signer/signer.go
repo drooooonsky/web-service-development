@@ -2,82 +2,108 @@ package main
 
 import (
 	"fmt"
-	"runtime"
+	"sort"
 	"strconv"
+	"strings"
 	"sync"
 )
 
-func SingleHash(in <-chan int, out chan<- string, wg *sync.WaitGroup, mu *sync.Mutex) {
-	defer wg.Done()
-	for input := range in {
-		input_str := strconv.Itoa(input)
-		mu.Lock()
-		dataMd5 := DataSignerMd5(input_str)
-		mu.Unlock()
-		result := DataSignerCrc32(input_str) + "~" + DataSignerCrc32(dataMd5)
-		fmt.Println("!!!! SingleHash result", result)
-		out <- result
-		runtime.Gosched()
-	}
-}
-
-func MultiHash(in <-chan string, out chan<- string, wg *sync.WaitGroup) {
-	var result string
-	defer wg.Done()
-	input := <-in
-	for th := 0; th <= 5; th++ {
-		result += DataSignerCrc32(strconv.Itoa(th) + input)
-	}
-	out <- result
-	fmt.Println("!!!! MultiHash result", result)
-}
-
-func CombineResults(in <-chan string, wg *sync.WaitGroup) {
-	defer wg.Done()
-	x := <-in
-	fmt.Println(x)
-}
-
-func main() {
-	data := []int{0, 111, 112, 113, 114, 115, 116, 117}
-	fmt.Println(data)
-
-	// WaitGroup чтобы дождаться выполнения корутин
+func ExecutePipeline(jobs ...job) {
 	wg := &sync.WaitGroup{}
-	// Mutex чтобы залочиться для функции DataSignerMd5
-	mu := &sync.Mutex{}
-	// канал для обмена между исходными данными и SingleHash
-	Ch1 := make(chan int)
-	// канал для обмена данными между SingleHash и MultiHash
-	Ch2 := make(chan string)
-	// канал для обмена данными между MultiHash и CombineResults
-	Ch3 := make(chan string)
+	in := make(chan interface{})
 
-	for _, x := range data {
+	for _, jobFunc := range jobs {
 		wg.Add(1)
-		go SingleHash(Ch1, Ch2, wg, mu)
-		Ch1 <- x
-		wg.Add(1)
-		go MultiHash(Ch2, Ch3, wg)
-		wg.Add(1)
-		go CombineResults(Ch3, wg)
+		out := make(chan interface{})
+
+		go func(wg *sync.WaitGroup, jobFunc job, in, out chan interface{}) {
+			defer wg.Done()
+			defer close(out)
+			jobFunc(in, out)
+		}(wg, jobFunc, in, out)
+
+		in = out
 	}
-	close(Ch1)
-
 	wg.Wait()
 
-	// fmt.Scanln()
-	// time.Sleep(1000 * time.Millisecond)
+}
 
-	// LOOP:
-	// 	for {
-	// 		select {
-	// 		case d, ok := <-Ch1:
-	// 			fmt.Println("!!!", d, ok)
-	// 		default:
-	// 			fmt.Println("quit")
-	// 			break LOOP
-	// 		}
-	// 	}
+func SingleHash(in, out chan interface{}) {
+	wg := &sync.WaitGroup{}
+	for input := range in {
+		data := fmt.Sprintf("%v", input) //strconv.Itoa(input)
+		crcMd5 := DataSignerMd5(data)
+		wg.Add(1)
+		go workSingleHash(wg, data, crcMd5, out)
+	}
+	wg.Wait()
+}
 
+func workSingleHash(wg *sync.WaitGroup, data string, crcMd5 string, out chan interface{}) {
+	defer wg.Done()
+
+	crc32Chan := make(chan string)
+	crcMd5Chan := make(chan string)
+
+	go func(ch chan string, data string) {
+		res := DataSignerCrc32(data)
+		ch <- res
+	}(crc32Chan, data)
+
+	go func(ch chan string, data string) {
+		res := DataSignerCrc32(data)
+		ch <- res
+	}(crcMd5Chan, crcMd5)
+
+	crc32Hash := <-crc32Chan
+	crc32Md5Hash := <-crcMd5Chan
+
+	out <- crc32Hash + "~" + crc32Md5Hash
+
+}
+
+func MultiHash(in, out chan interface{}) {
+	wg := &sync.WaitGroup{}
+	for i := range in {
+		wg.Add(1)
+		go workMultiHash(wg, i, out)
+	}
+
+	wg.Wait()
+}
+
+func workMultiHash(wg *sync.WaitGroup, h interface{}, ch chan interface{}) {
+
+	wgInternal := &sync.WaitGroup{}
+	hashArray := make([]string, 6)
+
+	defer wg.Done()
+
+	for th := 0; th < 6; th++ {
+		wgInternal.Add(1)
+		data := strconv.Itoa(th) + fmt.Sprintf("%v", h)
+		go calculateMultiHash(wgInternal, data, hashArray, th)
+	}
+	wgInternal.Wait()
+	multiHash := strings.Join(hashArray, "")
+
+	ch <- multiHash
+}
+
+func calculateMultiHash(wg *sync.WaitGroup, s string, array []string, index int) {
+	defer wg.Done()
+	crc32hash := DataSignerCrc32(s)
+	array[index] = crc32hash
+}
+
+func CombineResults(in, out chan interface{}) {
+	var hashArray []string
+
+	for i := range in {
+		hashArray = append(hashArray, i.(string))
+	}
+
+	sort.Strings(hashArray)
+	combineResults := strings.Join(hashArray, "_")
+	out <- combineResults
 }
