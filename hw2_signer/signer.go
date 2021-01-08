@@ -7,9 +7,7 @@ import (
 	"sync"
 )
 
-// сюда писать код
-
-func SingleHash(in <-chan int, wg *sync.WaitGroup, mu *sync.Mutex) {
+func SingleHash(in <-chan int, out chan<- string, wg *sync.WaitGroup, mu *sync.Mutex) {
 	defer wg.Done()
 	for input := range in {
 		input_str := strconv.Itoa(input)
@@ -18,44 +16,55 @@ func SingleHash(in <-chan int, wg *sync.WaitGroup, mu *sync.Mutex) {
 		mu.Unlock()
 		result := DataSignerCrc32(input_str) + "~" + DataSignerCrc32(dataMd5)
 		fmt.Println("!!!! SingleHash result", result)
+		out <- result
 		runtime.Gosched()
 	}
 }
 
-func MultiHash(d string) string {
+func MultiHash(in <-chan string, out chan<- string, wg *sync.WaitGroup) {
 	var result string
+	defer wg.Done()
+	input := <-in
 	for th := 0; th <= 5; th++ {
-		result += DataSignerCrc32(strconv.Itoa(th) + d)
+		result += DataSignerCrc32(strconv.Itoa(th) + input)
 	}
-	return result
+	out <- result
+	fmt.Println("!!!! MultiHash result", result)
+}
+
+func CombineResults(in <-chan string, wg *sync.WaitGroup) {
+	defer wg.Done()
+	x := <-in
+	fmt.Println(x)
 }
 
 func main() {
-	// workerInput := make(chan, int)
-
-	data := []int{110, 111, 112, 113, 114, 115, 116, 117}
+	data := []int{0, 111, 112, 113, 114, 115, 116, 117}
 	fmt.Println(data)
-	// ch1 := data[1]
-	// fmt.Printf("ch1 %v\n", ch1)
-	// ch2 := SingleHash(ch1)
-	// fmt.Printf("ch2 %v\n", ch2)
-	// ch3 := MultiHash(ch2)
-	// fmt.Printf("ch3 %v\n", ch3)
 
 	// WaitGroup чтобы дождаться выполнения корутин
 	wg := &sync.WaitGroup{}
 	// Mutex чтобы залочиться для функции DataSignerMd5
 	mu := &sync.Mutex{}
+	// канал для обмена между исходными данными и SingleHash
 	Ch1 := make(chan int)
+	// канал для обмена данными между SingleHash и MultiHash
+	Ch2 := make(chan string)
+	// канал для обмена данными между MultiHash и CombineResults
+	Ch3 := make(chan string)
+
 	for _, x := range data {
 		wg.Add(1)
-		go SingleHash(Ch1, wg, mu)
+		go SingleHash(Ch1, Ch2, wg, mu)
 		Ch1 <- x
+		wg.Add(1)
+		go MultiHash(Ch2, Ch3, wg)
+		wg.Add(1)
+		go CombineResults(Ch3, wg)
 	}
 	close(Ch1)
-	wg.Wait()
 
-	//добавить Lock!
+	wg.Wait()
 
 	// fmt.Scanln()
 	// time.Sleep(1000 * time.Millisecond)
