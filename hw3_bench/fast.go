@@ -35,8 +35,7 @@ func FastSearch(out io.Writer) {
 	}
 
 	r := regexp.MustCompile("@")
-	seenBrowsers := []string{}
-	uniqueBrowsers := 0
+	seenBrowsers := make(map[string]bool, 200)
 	foundUsers := ""
 
 	lines := strings.Split(string(fileContents), "\n")
@@ -69,42 +68,16 @@ func FastSearch(out io.Writer) {
 				// log.Println("cant cast browser to string")
 				continue
 			}
-			if ok, err := regexp.MatchString("Android", browser); ok && err == nil {
-				isAndroid = true
-				notSeenBefore := true
-				for _, item := range seenBrowsers {
-					if item == browser {
-						notSeenBefore = false
-					}
-				}
-				if notSeenBefore {
-					// log.Printf("SLOW New browser: %s, first seen: %s", browser, user["name"])
-					seenBrowsers = append(seenBrowsers, browser)
-					uniqueBrowsers++
-				}
-			}
-		}
 
-		for _, browserRaw := range browsers {
-			browser, ok := browserRaw.(string)
-			if !ok {
-				// log.Println("cant cast browser to string")
+			switch {
+			case strings.Contains(browser, "Android"):
+				isAndroid = true
+			case strings.Contains(browser, "MSIE"):
+				isMSIE = true
+			default:
 				continue
 			}
-			if ok, err := regexp.MatchString("MSIE", browser); ok && err == nil {
-				isMSIE = true
-				notSeenBefore := true
-				for _, item := range seenBrowsers {
-					if item == browser {
-						notSeenBefore = false
-					}
-				}
-				if notSeenBefore {
-					// log.Printf("SLOW New browser: %s, first seen: %s", browser, user["name"])
-					seenBrowsers = append(seenBrowsers, browser)
-					uniqueBrowsers++
-				}
-			}
+			seenBrowsers[browser] = true
 		}
 
 		if !(isAndroid && isMSIE) {
