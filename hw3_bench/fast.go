@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 
 	// json "encoding/json"
@@ -36,15 +37,17 @@ func FastSearch(out io.Writer) {
 
 	r := regexp.MustCompile("@")
 	seenBrowsers := make(map[string]bool, 200)
-	foundUsers := ""
+	fmt.Fprintln(out, "found users:")
 
 	lines := strings.Split(string(fileContents), "\n")
 
 	users := make([]map[string]interface{}, 0)
 	for _, line := range lines {
 		user := make(map[string]interface{})
+		// user := User{}
 		// fmt.Printf("%v %v\n", err, line)
 		err := json.Unmarshal([]byte(line), &user)
+		// user.UnmarshalJSON([]byte(line))
 		if err != nil {
 			panic(err)
 		}
@@ -86,10 +89,10 @@ func FastSearch(out io.Writer) {
 
 		// log.Println("Android and MSIE user:", user["name"], user["email"])
 		email := r.ReplaceAllString(user["email"].(string), " [at] ")
-		foundUsers += fmt.Sprintf("[%d] %s <%s>\n", i, user["name"], email)
+		fmt.Fprintln(out, "["+strconv.Itoa(i)+"] "+user["name"].(string)+" <"+email+">")
 	}
 
-	fmt.Fprintln(out, "found users:\n"+foundUsers)
+	fmt.Fprintln(out)
 	fmt.Fprintln(out, "Total unique browsers", len(seenBrowsers))
 }
 
